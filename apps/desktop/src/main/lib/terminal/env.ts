@@ -11,28 +11,28 @@ let localeProbeInFlight = false;
 const PROCESS_ENV_SNAPSHOT_CACHE_TTL_MS = 1_000;
 
 let cachedProcessEnvSnapshot: {
-	raw: Record<string, string>;
-	safe: Record<string, string>;
-	expiresAt: number;
+  raw: Record<string, string>;
+  safe: Record<string, string>;
+  expiresAt: number;
 } | null = null;
 let cachedMacosSystemCertAvailable: boolean | null = null;
 
 function startLocaleProbe(): void {
-	if (cachedUtf8Locale || localeProbeInFlight) return;
-	localeProbeInFlight = true;
+  if (cachedUtf8Locale || localeProbeInFlight) return;
+  localeProbeInFlight = true;
 
-	exec(
-		"locale 2>/dev/null | grep LANG= | cut -d= -f2",
-		{ encoding: "utf-8", timeout: 1000 },
-		(error, stdout) => {
-			localeProbeInFlight = false;
-			if (error) return;
-			const result = stdout.trim();
-			if (result.includes("UTF-8")) {
-				cachedUtf8Locale = result;
-			}
-		},
-	);
+  exec(
+    "locale 2>/dev/null | grep LANG= | cut -d= -f2",
+    { encoding: "utf-8", timeout: 1000 },
+    (error, stdout) => {
+      localeProbeInFlight = false;
+      if (error) return;
+      const result = stdout.trim();
+      if (result.includes("UTF-8")) {
+        cachedUtf8Locale = result;
+      }
+    },
+  );
 }
 
 /**
@@ -46,67 +46,67 @@ export const FALLBACK_SHELL = os.platform() === "win32" ? "cmd.exe" : "/bin/sh";
 export const SHELL_CRASH_THRESHOLD_MS = 1000;
 
 type DefaultShellModuleShape =
-	| string
-	| {
-			default?: string;
-	  }
-	| null
-	| undefined;
+  | string
+  | {
+      default?: string;
+    }
+  | null
+  | undefined;
 
 export function normalizeDefaultShell(
-	shellValue: DefaultShellModuleShape,
+  shellValue: DefaultShellModuleShape,
 ): string | null {
-	if (typeof shellValue === "string" && shellValue.length > 0) {
-		return shellValue;
-	}
+  if (typeof shellValue === "string" && shellValue.length > 0) {
+    return shellValue;
+  }
 
-	if (
-		shellValue &&
-		typeof shellValue === "object" &&
-		typeof shellValue.default === "string" &&
-		shellValue.default.length > 0
-	) {
-		return shellValue.default;
-	}
+  if (
+    shellValue &&
+    typeof shellValue === "object" &&
+    typeof shellValue.default === "string" &&
+    shellValue.default.length > 0
+  ) {
+    return shellValue.default;
+  }
 
-	return null;
+  return null;
 }
 
 export function getDefaultShell(): string {
-	const resolvedDefaultShell = normalizeDefaultShell(defaultShell);
-	if (resolvedDefaultShell) {
-		return resolvedDefaultShell;
-	}
+  const resolvedDefaultShell = normalizeDefaultShell(defaultShell);
+  if (resolvedDefaultShell) {
+    return resolvedDefaultShell;
+  }
 
-	const platform = os.platform();
+  const platform = os.platform();
 
-	if (platform === "win32") {
-		return process.env.COMSPEC || "powershell.exe";
-	}
+  if (platform === "win32") {
+    return process.env.COMSPEC || "powershell.exe";
+  }
 
-	if (process.env.SHELL) {
-		return process.env.SHELL;
-	}
+  if (process.env.SHELL) {
+    return process.env.SHELL;
+  }
 
-	return "/bin/sh";
+  return "/bin/sh";
 }
 
 export function getLocale(baseEnv: Record<string, string>): string {
-	if (baseEnv.LANG?.includes("UTF-8")) {
-		return baseEnv.LANG;
-	}
+  if (baseEnv.LANG?.includes("UTF-8")) {
+    return baseEnv.LANG;
+  }
 
-	if (baseEnv.LC_ALL?.includes("UTF-8")) {
-		return baseEnv.LC_ALL;
-	}
+  if (baseEnv.LC_ALL?.includes("UTF-8")) {
+    return baseEnv.LC_ALL;
+  }
 
-	if (cachedUtf8Locale) {
-		return cachedUtf8Locale;
-	}
+  if (cachedUtf8Locale) {
+    return cachedUtf8Locale;
+  }
 
-	startLocaleProbe();
-	cachedUtf8Locale = "en_US.UTF-8";
-	return cachedUtf8Locale;
+  startLocaleProbe();
+  cachedUtf8Locale = "en_US.UTF-8";
+  return cachedUtf8Locale;
 }
 
 /**
@@ -114,66 +114,66 @@ export function getLocale(baseEnv: Record<string, string>): string {
  * the first terminal create/attach path does not pay a synchronous probe.
  */
 export function prewarmTerminalEnv(): void {
-	const rawBaseEnv = sanitizeEnv(process.env) || {};
-	const directLocale = rawBaseEnv.LANG?.includes("UTF-8")
-		? rawBaseEnv.LANG
-		: rawBaseEnv.LC_ALL?.includes("UTF-8")
-			? rawBaseEnv.LC_ALL
-			: null;
-	if (directLocale) {
-		cachedUtf8Locale = directLocale;
-		return;
-	}
-	startLocaleProbe();
+  const rawBaseEnv = sanitizeEnv(process.env) || {};
+  const directLocale = rawBaseEnv.LANG?.includes("UTF-8")
+    ? rawBaseEnv.LANG
+    : rawBaseEnv.LC_ALL?.includes("UTF-8")
+      ? rawBaseEnv.LC_ALL
+      : null;
+  if (directLocale) {
+    cachedUtf8Locale = directLocale;
+    return;
+  }
+  startLocaleProbe();
 }
 
 export function sanitizeEnv(
-	env: NodeJS.ProcessEnv,
+  env: NodeJS.ProcessEnv,
 ): Record<string, string> | undefined {
-	const sanitized: Record<string, string> = {};
+  const sanitized: Record<string, string> = {};
 
-	for (const [key, value] of Object.entries(env)) {
-		if (typeof value === "string") {
-			sanitized[key] = value;
-		}
-	}
+  for (const [key, value] of Object.entries(env)) {
+    if (typeof value === "string") {
+      sanitized[key] = value;
+    }
+  }
 
-	return Object.keys(sanitized).length > 0 ? sanitized : undefined;
+  return Object.keys(sanitized).length > 0 ? sanitized : undefined;
 }
 
 function getProcessEnvSnapshot(): {
-	raw: Record<string, string>;
-	safe: Record<string, string>;
+  raw: Record<string, string>;
+  safe: Record<string, string>;
 } {
-	const now = Date.now();
-	if (cachedProcessEnvSnapshot && cachedProcessEnvSnapshot.expiresAt > now) {
-		return cachedProcessEnvSnapshot;
-	}
+  const now = Date.now();
+  if (cachedProcessEnvSnapshot && cachedProcessEnvSnapshot.expiresAt > now) {
+    return cachedProcessEnvSnapshot;
+  }
 
-	const raw = sanitizeEnv(process.env) || {};
-	const safe = buildSafeEnv(raw);
-	cachedProcessEnvSnapshot = {
-		raw,
-		safe,
-		expiresAt: now + PROCESS_ENV_SNAPSHOT_CACHE_TTL_MS,
-	};
-	return cachedProcessEnvSnapshot;
+  const raw = sanitizeEnv(process.env) || {};
+  const safe = buildSafeEnv(raw);
+  cachedProcessEnvSnapshot = {
+    raw,
+    safe,
+    expiresAt: now + PROCESS_ENV_SNAPSHOT_CACHE_TTL_MS,
+  };
+  return cachedProcessEnvSnapshot;
 }
 
 function hasMacosSystemCertBundle(): boolean {
-	if (cachedMacosSystemCertAvailable !== null) {
-		return cachedMacosSystemCertAvailable;
-	}
+  if (cachedMacosSystemCertAvailable !== null) {
+    return cachedMacosSystemCertAvailable;
+  }
 
-	cachedMacosSystemCertAvailable = fs.existsSync(MACOS_SYSTEM_CERT_FILE);
-	return cachedMacosSystemCertAvailable;
+  cachedMacosSystemCertAvailable = fs.existsSync(MACOS_SYSTEM_CERT_FILE);
+  return cachedMacosSystemCertAvailable;
 }
 
 export function resetTerminalEnvCachesForTests(): void {
-	cachedProcessEnvSnapshot = null;
-	cachedMacosSystemCertAvailable = null;
-	cachedUtf8Locale = null;
-	localeProbeInFlight = false;
+  cachedProcessEnvSnapshot = null;
+  cachedMacosSystemCertAvailable = null;
+  cachedUtf8Locale = null;
+  localeProbeInFlight = false;
 }
 
 /**
@@ -185,174 +185,174 @@ export function resetTerminalEnvCachesForTests(): void {
  * We store uppercase versions here and do case-insensitive matching on Windows.
  */
 const ALLOWED_ENV_VARS = new Set([
-	// Core shell environment
-	"PATH",
-	"HOME",
-	"USER",
-	"LOGNAME",
-	"SHELL",
-	"TERM",
-	"TMPDIR",
-	"LANG",
-	"LC_ALL",
-	"LC_CTYPE",
-	"LC_MESSAGES",
-	"LC_COLLATE",
-	"LC_MONETARY",
-	"LC_NUMERIC",
-	"LC_TIME",
-	"TZ",
+  // Core shell environment
+  "PATH",
+  "HOME",
+  "USER",
+  "LOGNAME",
+  "SHELL",
+  "TERM",
+  "TMPDIR",
+  "LANG",
+  "LC_ALL",
+  "LC_CTYPE",
+  "LC_MESSAGES",
+  "LC_COLLATE",
+  "LC_MONETARY",
+  "LC_NUMERIC",
+  "LC_TIME",
+  "TZ",
 
-	// Shell initialization (required for agent wrapper PATH injection)
-	"ZDOTDIR", // zsh config directory - used to source our wrapper
-	"BASH_ENV", // bash startup file - used for non-interactive shells
+  // Shell initialization (required for agent wrapper PATH injection)
+  "ZDOTDIR", // zsh config directory - used to source our wrapper
+  "BASH_ENV", // bash startup file - used for non-interactive shells
 
-	// Terminal/display
-	"DISPLAY",
-	"COLORTERM",
-	"TERM_PROGRAM",
-	"TERM_PROGRAM_VERSION",
-	"COLUMNS",
-	"LINES",
+  // Terminal/display
+  "DISPLAY",
+  "COLORTERM",
+  "TERM_PROGRAM",
+  "TERM_PROGRAM_VERSION",
+  "COLUMNS",
+  "LINES",
 
-	// SSH (critical for git operations)
-	"SSH_AUTH_SOCK",
-	"SSH_AGENT_PID",
+  // SSH (critical for git operations)
+  "SSH_AUTH_SOCK",
+  "SSH_AGENT_PID",
 
-	// Proxy configuration (user may need for network access)
-	// Note: proxy vars are case-sensitive on Unix, so we include both cases
-	"HTTP_PROXY",
-	"HTTPS_PROXY",
-	"http_proxy",
-	"https_proxy",
-	"NO_PROXY",
-	"no_proxy",
-	"ALL_PROXY",
-	"all_proxy",
-	"FTP_PROXY",
-	"ftp_proxy",
+  // Proxy configuration (user may need for network access)
+  // Note: proxy vars are case-sensitive on Unix, so we include both cases
+  "HTTP_PROXY",
+  "HTTPS_PROXY",
+  "http_proxy",
+  "https_proxy",
+  "NO_PROXY",
+  "no_proxy",
+  "ALL_PROXY",
+  "all_proxy",
+  "FTP_PROXY",
+  "ftp_proxy",
 
-	// Language version managers (users expect these to work)
-	"NVM_DIR",
-	"NVM_BIN",
-	"NVM_INC",
-	"NVM_CD_FLAGS",
-	"NVM_RC_VERSION",
-	"PYENV_ROOT",
-	"PYENV_SHELL",
-	"PYENV_VERSION",
-	"RBENV_ROOT",
-	"RBENV_SHELL",
-	"RBENV_VERSION",
-	"GOPATH",
-	"GOROOT",
-	"GOBIN",
-	"CARGO_HOME",
-	"RUSTUP_HOME",
-	"DENO_DIR",
-	"DENO_INSTALL",
-	"BUN_INSTALL",
-	"PNPM_HOME",
-	"VOLTA_HOME",
-	"ASDF_DIR",
-	"ASDF_DATA_DIR",
-	"FNM_DIR",
-	"FNM_MULTISHELL_PATH",
-	"FNM_NODE_DIST_MIRROR",
-	"SDKMAN_DIR",
+  // Language version managers (users expect these to work)
+  "NVM_DIR",
+  "NVM_BIN",
+  "NVM_INC",
+  "NVM_CD_FLAGS",
+  "NVM_RC_VERSION",
+  "PYENV_ROOT",
+  "PYENV_SHELL",
+  "PYENV_VERSION",
+  "RBENV_ROOT",
+  "RBENV_SHELL",
+  "RBENV_VERSION",
+  "GOPATH",
+  "GOROOT",
+  "GOBIN",
+  "CARGO_HOME",
+  "RUSTUP_HOME",
+  "DENO_DIR",
+  "DENO_INSTALL",
+  "BUN_INSTALL",
+  "PNPM_HOME",
+  "VOLTA_HOME",
+  "ASDF_DIR",
+  "ASDF_DATA_DIR",
+  "FNM_DIR",
+  "FNM_MULTISHELL_PATH",
+  "FNM_NODE_DIST_MIRROR",
+  "SDKMAN_DIR",
 
-	// Homebrew
-	"HOMEBREW_PREFIX",
-	"HOMEBREW_CELLAR",
-	"HOMEBREW_REPOSITORY",
+  // Homebrew
+  "HOMEBREW_PREFIX",
+  "HOMEBREW_CELLAR",
+  "HOMEBREW_REPOSITORY",
 
-	// XDG directories (Linux/macOS standards)
-	"XDG_CONFIG_HOME",
-	"XDG_DATA_HOME",
-	"XDG_CACHE_HOME",
-	"XDG_STATE_HOME",
-	"XDG_RUNTIME_DIR",
+  // XDG directories (Linux/macOS standards)
+  "XDG_CONFIG_HOME",
+  "XDG_DATA_HOME",
+  "XDG_CACHE_HOME",
+  "XDG_STATE_HOME",
+  "XDG_RUNTIME_DIR",
 
-	// Editor (user preference, safe)
-	"EDITOR",
-	"VISUAL",
-	"PAGER",
+  // Editor (user preference, safe)
+  "EDITOR",
+  "VISUAL",
+  "PAGER",
 
-	// macOS specific
-	"__CF_USER_TEXT_ENCODING",
-	"Apple_PubSub_Socket_Render",
+  // macOS specific
+  "__CF_USER_TEXT_ENCODING",
+  "Apple_PubSub_Socket_Render",
 
-	// Windows specific (for cross-platform compatibility)
-	// Note: Windows stores these with various casings (Path, SystemRoot, etc.)
-	// but we match case-insensitively on win32
-	"COMSPEC",
-	"USERPROFILE",
-	"HOMEDRIVE",
-	"HOMEPATH",
-	"APPDATA",
-	"LOCALAPPDATA",
-	"PROGRAMDATA",
-	"PROGRAMFILES",
-	"PROGRAMFILES(X86)",
-	"COMMONPROGRAMFILES",
-	"COMMONPROGRAMFILES(X86)",
-	"SYSTEMROOT",
-	"WINDIR",
-	"SYSTEMDRIVE",
-	"TEMP",
-	"TMP",
-	"PATHEXT", // Required for command resolution on Windows
-	"USERNAME",
-	"COMPUTERNAME",
-	"OS",
-	"NUMBER_OF_PROCESSORS",
-	"PROCESSOR_ARCHITECTURE",
-	"PSMODULEPATH", // PowerShell module resolution
+  // Windows specific (for cross-platform compatibility)
+  // Note: Windows stores these with various casings (Path, SystemRoot, etc.)
+  // but we match case-insensitively on win32
+  "COMSPEC",
+  "USERPROFILE",
+  "HOMEDRIVE",
+  "HOMEPATH",
+  "APPDATA",
+  "LOCALAPPDATA",
+  "PROGRAMDATA",
+  "PROGRAMFILES",
+  "PROGRAMFILES(X86)",
+  "COMMONPROGRAMFILES",
+  "COMMONPROGRAMFILES(X86)",
+  "SYSTEMROOT",
+  "WINDIR",
+  "SYSTEMDRIVE",
+  "TEMP",
+  "TMP",
+  "PATHEXT", // Required for command resolution on Windows
+  "USERNAME",
+  "COMPUTERNAME",
+  "OS",
+  "NUMBER_OF_PROCESSORS",
+  "PROCESSOR_ARCHITECTURE",
+  "PSMODULEPATH", // PowerShell module resolution
 
-	// SSL/TLS configuration (custom certs, not secrets)
-	"SSL_CERT_FILE",
-	"SSL_CERT_DIR",
-	"NODE_EXTRA_CA_CERTS",
-	"REQUESTS_CA_BUNDLE", // Python requests library
+  // SSL/TLS configuration (custom certs, not secrets)
+  "SSL_CERT_FILE",
+  "SSL_CERT_DIR",
+  "NODE_EXTRA_CA_CERTS",
+  "REQUESTS_CA_BUNDLE", // Python requests library
 
-	// Git configuration (not credentials)
-	"GIT_SSH_COMMAND",
-	"GIT_AUTHOR_NAME",
-	"GIT_AUTHOR_EMAIL",
-	"GIT_COMMITTER_NAME",
-	"GIT_COMMITTER_EMAIL",
-	"GIT_EDITOR",
-	"GIT_PAGER",
+  // Git configuration (not credentials)
+  "GIT_SSH_COMMAND",
+  "GIT_AUTHOR_NAME",
+  "GIT_AUTHOR_EMAIL",
+  "GIT_COMMITTER_NAME",
+  "GIT_COMMITTER_EMAIL",
+  "GIT_EDITOR",
+  "GIT_PAGER",
 
-	// AWS configuration (profile selection, not credentials)
-	// Actual secrets are in ~/.aws/credentials, not env vars
-	"AWS_PROFILE",
-	"AWS_DEFAULT_REGION",
-	"AWS_REGION",
-	"AWS_CONFIG_FILE",
-	"AWS_SHARED_CREDENTIALS_FILE",
+  // AWS configuration (profile selection, not credentials)
+  // Actual secrets are in ~/.aws/credentials, not env vars
+  "AWS_PROFILE",
+  "AWS_DEFAULT_REGION",
+  "AWS_REGION",
+  "AWS_CONFIG_FILE",
+  "AWS_SHARED_CREDENTIALS_FILE",
 
-	// Docker configuration (not credentials)
-	"DOCKER_HOST",
-	"DOCKER_CONFIG",
-	"DOCKER_CERT_PATH",
-	"DOCKER_TLS_VERIFY",
-	"COMPOSE_PROJECT_NAME",
+  // Docker configuration (not credentials)
+  "DOCKER_HOST",
+  "DOCKER_CONFIG",
+  "DOCKER_CERT_PATH",
+  "DOCKER_TLS_VERIFY",
+  "COMPOSE_PROJECT_NAME",
 
-	// Kubernetes configuration (not credentials)
-	"KUBECONFIG",
-	"KUBE_CONFIG_PATH",
+  // Kubernetes configuration (not credentials)
+  "KUBECONFIG",
+  "KUBE_CONFIG_PATH",
 
-	// Cloud CLI tools (not credentials)
-	"CLOUDSDK_CONFIG", // Google Cloud SDK
-	"AZURE_CONFIG_DIR", // Azure CLI
+  // Cloud CLI tools (not credentials)
+  "CLOUDSDK_CONFIG", // Google Cloud SDK
+  "AZURE_CONFIG_DIR", // Azure CLI
 
-	// SDK paths (not secrets)
-	"JAVA_HOME",
-	"ANDROID_HOME",
-	"ANDROID_SDK_ROOT",
-	"FLUTTER_ROOT",
-	"DOTNET_ROOT",
+  // SDK paths (not secrets)
+  "JAVA_HOME",
+  "ANDROID_HOME",
+  "ANDROID_SDK_ROOT",
+  "FLUTTER_ROOT",
+  "DOTNET_ROOT",
 ]);
 
 /**
@@ -360,8 +360,8 @@ const ALLOWED_ENV_VARS = new Set([
  * These are checked after exact matches fail.
  */
 const ALLOWED_PREFIXES = [
-	"SUPERSET_", // Our own metadata vars
-	"LC_", // Locale settings
+  "SUPERSET_", // Our own metadata vars
+  "LC_", // Locale settings
 ];
 
 /**
@@ -370,12 +370,12 @@ const ALLOWED_PREFIXES = [
  * @param isWindows - Whether running on Windows (for case-insensitive matching)
  */
 function isAllowedVar(key: string, isWindows: boolean): boolean {
-	// On Windows, env vars are case-insensitive
-	// The system may store "Path" instead of "PATH"
-	if (isWindows) {
-		return ALLOWED_ENV_VARS.has(key.toUpperCase());
-	}
-	return ALLOWED_ENV_VARS.has(key);
+  // On Windows, env vars are case-insensitive
+  // The system may store "Path" instead of "PATH"
+  if (isWindows) {
+    return ALLOWED_ENV_VARS.has(key.toUpperCase());
+  }
+  return ALLOWED_ENV_VARS.has(key);
 }
 
 /**
@@ -384,8 +384,8 @@ function isAllowedVar(key: string, isWindows: boolean): boolean {
  * @param isWindows - Whether running on Windows (for case-insensitive matching)
  */
 function hasAllowedPrefix(key: string, isWindows: boolean): boolean {
-	const keyToCheck = isWindows ? key.toUpperCase() : key;
-	return ALLOWED_PREFIXES.some((prefix) => keyToCheck.startsWith(prefix));
+  const keyToCheck = isWindows ? key.toUpperCase() : key;
+  return ALLOWED_PREFIXES.some((prefix) => keyToCheck.startsWith(prefix));
 }
 
 /**
@@ -408,103 +408,103 @@ function hasAllowedPrefix(key: string, isWindows: boolean): boolean {
  * @param options.platform - Override platform detection (for testing)
  */
 export function buildSafeEnv(
-	env: Record<string, string>,
-	options?: { platform?: NodeJS.Platform },
+  env: Record<string, string>,
+  options?: { platform?: NodeJS.Platform },
 ): Record<string, string> {
-	const platform = options?.platform ?? os.platform();
-	const isWindows = platform === "win32";
-	const safe: Record<string, string> = {};
+  const platform = options?.platform ?? os.platform();
+  const isWindows = platform === "win32";
+  const safe: Record<string, string> = {};
 
-	for (const [key, value] of Object.entries(env)) {
-		// Check exact match (case-insensitive on Windows)
-		if (isAllowedVar(key, isWindows)) {
-			safe[key] = value;
-			continue;
-		}
+  for (const [key, value] of Object.entries(env)) {
+    // Check exact match (case-insensitive on Windows)
+    if (isAllowedVar(key, isWindows)) {
+      safe[key] = value;
+      continue;
+    }
 
-		// Check prefix match (case-insensitive on Windows)
-		if (hasAllowedPrefix(key, isWindows)) {
-			safe[key] = value;
-		}
-	}
+    // Check prefix match (case-insensitive on Windows)
+    if (hasAllowedPrefix(key, isWindows)) {
+      safe[key] = value;
+    }
+  }
 
-	return safe;
+  return safe;
 }
 
 /**
  * @deprecated Use buildSafeEnv instead. Kept for backward compatibility.
  */
 export function removeAppEnvVars(
-	env: Record<string, string>,
+  env: Record<string, string>,
 ): Record<string, string> {
-	return buildSafeEnv(env);
+  return buildSafeEnv(env);
 }
 
 export function buildTerminalEnv(params: {
-	shell: string;
-	paneId: string;
-	tabId: string;
-	workspaceId: string;
-	workspaceName?: string;
-	workspacePath?: string;
-	rootPath?: string;
-	themeType?: "dark" | "light";
+  shell: string;
+  paneId: string;
+  tabId: string;
+  workspaceId: string;
+  workspaceName?: string;
+  workspacePath?: string;
+  rootPath?: string;
+  themeType?: "dark" | "light";
 }): Record<string, string> {
-	const {
-		shell,
-		paneId,
-		tabId,
-		workspaceId,
-		workspaceName,
-		workspacePath,
-		rootPath,
-		themeType,
-	} = params;
+  const {
+    shell,
+    paneId,
+    tabId,
+    workspaceId,
+    workspaceName,
+    workspacePath,
+    rootPath,
+    themeType,
+  } = params;
 
-	// Get Electron's process.env and filter to only allowlisted safe vars
-	// This prevents secrets and app config from leaking to user terminals
-	const { raw: rawBaseEnv, safe: baseEnv } = getProcessEnvSnapshot();
+  // Get Electron's process.env and filter to only allowlisted safe vars
+  // This prevents secrets and app config from leaking to user terminals
+  const { raw: rawBaseEnv, safe: baseEnv } = getProcessEnvSnapshot();
 
-	// shellEnv provides shell wrapper control variables (ZDOTDIR, BASH_ENV, etc.)
-	// These configure how the shell initializes, not the user's actual environment
-	const shellEnv = getShellEnv(shell);
-	const locale = getLocale(rawBaseEnv);
+  // shellEnv provides shell wrapper control variables (ZDOTDIR, BASH_ENV, etc.)
+  // These configure how the shell initializes, not the user's actual environment
+  const shellEnv = getShellEnv(shell);
+  const locale = getLocale(rawBaseEnv);
 
-	// COLORFGBG: "foreground;background" ANSI color indices — TUI apps use this to detect light/dark
-	const colorFgBg = themeType === "light" ? "0;15" : "15;0";
+  // COLORFGBG: "foreground;background" ANSI color indices — TUI apps use this to detect light/dark
+  const colorFgBg = themeType === "light" ? "0;15" : "15;0";
 
-	const terminalEnv: Record<string, string> = {
-		...baseEnv,
-		...shellEnv,
-		TERM_PROGRAM: "Superset",
-		TERM_PROGRAM_VERSION: process.env.npm_package_version || "1.0.0",
-		COLORTERM: "truecolor",
-		COLORFGBG: colorFgBg,
-		LANG: locale,
-		SUPERSET_PANE_ID: paneId,
-		SUPERSET_TAB_ID: tabId,
-		SUPERSET_WORKSPACE_ID: workspaceId,
-		SUPERSET_WORKSPACE_NAME: workspaceName || "",
-		SUPERSET_WORKSPACE_PATH: workspacePath || "",
-		SUPERSET_ROOT_PATH: rootPath || "",
-		SUPERSET_PORT: String(env.DESKTOP_NOTIFICATIONS_PORT),
-		// Environment identifier for dev/prod separation
-		SUPERSET_ENV: env.NODE_ENV === "development" ? "development" : "production",
-		// Hook protocol version for forward compatibility
-		SUPERSET_HOOK_VERSION: HOOK_PROTOCOL_VERSION,
-	};
+  const terminalEnv: Record<string, string> = {
+    ...baseEnv,
+    ...shellEnv,
+    TERM_PROGRAM: "Superset",
+    TERM_PROGRAM_VERSION: process.env.npm_package_version || "1.0.0",
+    COLORTERM: "truecolor",
+    COLORFGBG: colorFgBg,
+    LANG: locale,
+    SUPERSET_PANE_ID: paneId,
+    SUPERSET_TAB_ID: tabId,
+    SUPERSET_WORKSPACE_ID: workspaceId,
+    SUPERSET_WORKSPACE_NAME: workspaceName || "",
+    SUPERSET_WORKSPACE_PATH: workspacePath || "",
+    SUPERSET_ROOT_PATH: rootPath || "",
+    SUPERSET_PORT: String(env.DESKTOP_NOTIFICATIONS_PORT),
+    // Environment identifier for dev/prod separation
+    SUPERSET_ENV: env.NODE_ENV === "development" ? "development" : "production",
+    // Hook protocol version for forward compatibility
+    SUPERSET_HOOK_VERSION: HOOK_PROTOCOL_VERSION,
+  };
 
-	delete terminalEnv.GOOGLE_API_KEY;
+  delete terminalEnv.GOOGLE_API_KEY;
 
-	// Electron child processes can't access macOS Keychain for TLS cert verification,
-	// causing "x509: OSStatus -26276" in Go binaries like `gh`. File-based fallback.
-	if (
-		os.platform() === "darwin" &&
-		!terminalEnv.SSL_CERT_FILE &&
-		hasMacosSystemCertBundle()
-	) {
-		terminalEnv.SSL_CERT_FILE = MACOS_SYSTEM_CERT_FILE;
-	}
+  // Electron child processes can't access macOS Keychain for TLS cert verification,
+  // causing "x509: OSStatus -26276" in Go binaries like `gh`. File-based fallback.
+  if (
+    os.platform() === "darwin" &&
+    !terminalEnv.SSL_CERT_FILE &&
+    hasMacosSystemCertBundle()
+  ) {
+    terminalEnv.SSL_CERT_FILE = MACOS_SYSTEM_CERT_FILE;
+  }
 
-	return terminalEnv;
+  return terminalEnv;
 }
