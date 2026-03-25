@@ -287,15 +287,27 @@ const ALLOWED_ENV_VARS = new Set([
 	// but we match case-insensitively on win32
 	"COMSPEC",
 	"USERPROFILE",
+	"HOMEDRIVE",
+	"HOMEPATH",
 	"APPDATA",
 	"LOCALAPPDATA",
+	"PROGRAMDATA",
 	"PROGRAMFILES",
 	"PROGRAMFILES(X86)",
+	"COMMONPROGRAMFILES",
+	"COMMONPROGRAMFILES(X86)",
 	"SYSTEMROOT",
 	"WINDIR",
+	"SYSTEMDRIVE",
 	"TEMP",
 	"TMP",
 	"PATHEXT", // Required for command resolution on Windows
+	"USERNAME",
+	"COMPUTERNAME",
+	"OS",
+	"NUMBER_OF_PROCESSORS",
+	"PROCESSOR_ARCHITECTURE",
+	"PSMODULEPATH", // PowerShell module resolution
 
 	// SSL/TLS configuration (custom certs, not secrets)
 	"SSL_CERT_FILE",

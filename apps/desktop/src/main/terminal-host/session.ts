@@ -1115,7 +1115,9 @@ export class Session {
 		if (process.platform === "win32") {
 			return process.env.COMSPEC || "cmd.exe";
 		}
-		return process.env.SHELL || "/bin/zsh";
+		// $SHELL is set on macOS and most Linux distros; fall back to bash
+		// which is more universally available than zsh on Linux
+		return process.env.SHELL || "/bin/bash";
 	}
 }
 
@@ -1134,7 +1136,7 @@ export function createSession(request: CreateOrAttachRequest): Session {
 		tabId: request.tabId,
 		cols: request.cols,
 		rows: request.rows,
-		cwd: request.cwd || process.env.HOME || "/",
+		cwd: request.cwd || process.env.HOME || process.env.USERPROFILE || "/",
 		env: request.env,
 		shell: request.shell,
 		workspaceName: request.workspaceName,

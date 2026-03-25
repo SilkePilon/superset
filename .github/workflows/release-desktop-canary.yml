@@ -121,6 +121,14 @@ jobs:
               break
             fi
           done
+          # Windows: create canary-named installer copy
+          for file in *.exe; do
+            if [[ -f "$file" ]]; then
+              arch=$(echo "$file" | sed -E 's/.*-([^-]+)\.exe$/\1/')
+              cp "$file" "Superset-Canary-${arch}.exe"
+              echo "Created canary copy: Superset-Canary-${arch}.exe"
+            fi
+          done
 
       - name: List artifacts
         run: |

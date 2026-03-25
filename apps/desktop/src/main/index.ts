@@ -2,24 +2,24 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { settings } from "@superset/local-db";
 import {
-	app,
-	BrowserWindow,
-	dialog,
-	Notification,
-	net,
-	protocol,
-	session,
+  app,
+  BrowserWindow,
+  dialog,
+  Notification,
+  net,
+  protocol,
+  session,
 } from "electron";
 import { makeAppSetup } from "lib/electron-app/factories/app/setup";
 import {
-	handleAuthCallback,
-	parseAuthDeepLink,
+  handleAuthCallback,
+  parseAuthDeepLink,
 } from "lib/trpc/routers/auth/utils/auth-functions";
 import { applyShellEnvToProcess } from "lib/trpc/routers/workspaces/utils/shell-env";
 import {
-	DEFAULT_CONFIRM_ON_QUIT,
-	PLATFORM,
-	PROTOCOL_SCHEME,
+  DEFAULT_CONFIRM_ON_QUIT,
+  PLATFORM,
+  PROTOCOL_SCHEME,
 } from "shared/constants";
 import { setupAgentHooks } from "./lib/agent-setup";
 import { initAppState } from "./lib/app-state";
@@ -33,8 +33,8 @@ import { localDb } from "./lib/local-db";
 import { ensureProjectIconsDir, getProjectIconPath } from "./lib/project-icons";
 import { initSentry } from "./lib/sentry";
 import {
-	prewarmTerminalRuntime,
-	reconcileDaemonSessions,
+  prewarmTerminalRuntime,
+  reconcileDaemonSessions,
 } from "./lib/terminal";
 import { disposeTray, initTray } from "./lib/tray";
 import { MainWindow } from "./windows/main";
@@ -43,94 +43,94 @@ console.log("[main] Local database ready:", !!localDb);
 const IS_DEV = process.env.NODE_ENV === "development";
 
 void applyShellEnvToProcess().catch((error) => {
-	console.error("[main] Failed to apply shell environment:", error);
+  console.error("[main] Failed to apply shell environment:", error);
 });
 
 // Dev mode: label the app with the workspace name so multiple worktrees are distinguishable
 if (IS_DEV) {
-	const workspaceName = resolveDevWorkspaceName();
-	if (workspaceName) {
-		app.setName(`Superset (${workspaceName})`);
-	}
+  const workspaceName = resolveDevWorkspaceName();
+  if (workspaceName) {
+    app.setName(`Superset (${workspaceName})`);
+  }
 }
 
 // Dev mode: register with execPath + app script so macOS launches Electron with our entry point
 if (process.defaultApp) {
-	if (process.argv.length >= 2) {
-		app.setAsDefaultProtocolClient(PROTOCOL_SCHEME, process.execPath, [
-			path.resolve(process.argv[1]),
-		]);
-	}
+  if (process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient(PROTOCOL_SCHEME, process.execPath, [
+      path.resolve(process.argv[1]),
+    ]);
+  }
 } else {
-	app.setAsDefaultProtocolClient(PROTOCOL_SCHEME);
+  app.setAsDefaultProtocolClient(PROTOCOL_SCHEME);
 }
 
 async function processDeepLink(url: string): Promise<void> {
-	console.log("[main] Processing deep link:", url);
+  console.log("[main] Processing deep link:", url);
 
-	const authParams = parseAuthDeepLink(url);
-	if (authParams) {
-		const result = await handleAuthCallback(authParams);
-		if (result.success) {
-			focusMainWindow();
-		} else {
-			console.error("[main] Auth deep link failed:", result.error);
-		}
-		return;
-	}
+  const authParams = parseAuthDeepLink(url);
+  if (authParams) {
+    const result = await handleAuthCallback(authParams);
+    if (result.success) {
+      focusMainWindow();
+    } else {
+      console.error("[main] Auth deep link failed:", result.error);
+    }
+    return;
+  }
 
-	// Non-auth deep links: extract path and navigate in renderer
-	// e.g. superset://tasks/my-slug -> /tasks/my-slug
-	const path = `/${url.split("://")[1]}`;
-	focusMainWindow();
+  // Non-auth deep links: extract path and navigate in renderer
+  // e.g. superset://tasks/my-slug -> /tasks/my-slug
+  const path = `/${url.split("://")[1]}`;
+  focusMainWindow();
 
-	const windows = BrowserWindow.getAllWindows();
-	if (windows.length > 0) {
-		windows[0].webContents.send("deep-link-navigate", path);
-	}
+  const windows = BrowserWindow.getAllWindows();
+  if (windows.length > 0) {
+    windows[0].webContents.send("deep-link-navigate", path);
+  }
 }
 
 function findDeepLinkInArgv(argv: string[]): string | undefined {
-	return argv.find((arg) => arg.startsWith(`${PROTOCOL_SCHEME}://`));
+  return argv.find((arg) => arg.startsWith(`${PROTOCOL_SCHEME}://`));
 }
 
 function focusMainWindow(): void {
-	const windows = BrowserWindow.getAllWindows();
-	if (windows.length > 0) {
-		const mainWindow = windows[0];
-		if (mainWindow.isMinimized()) {
-			mainWindow.restore();
-		}
-		mainWindow.show();
-		mainWindow.focus();
-	}
+  const windows = BrowserWindow.getAllWindows();
+  if (windows.length > 0) {
+    const mainWindow = windows[0];
+    if (mainWindow.isMinimized()) {
+      mainWindow.restore();
+    }
+    mainWindow.show();
+    mainWindow.focus();
+  }
 }
 
 function registerWithMacOSNotificationCenter() {
-	if (!PLATFORM.IS_MAC || !Notification.isSupported()) return;
+  if (!PLATFORM.IS_MAC || !Notification.isSupported()) return;
 
-	const registrationNotification = new Notification({
-		title: app.name,
-		body: " ",
-		silent: true,
-	});
+  const registrationNotification = new Notification({
+    title: app.name,
+    body: " ",
+    silent: true,
+  });
 
-	let handled = false;
-	const cleanup = () => {
-		if (handled) return;
-		handled = true;
-		registrationNotification.close();
-	};
+  let handled = false;
+  const cleanup = () => {
+    if (handled) return;
+    handled = true;
+    registrationNotification.close();
+  };
 
-	registrationNotification.on("show", () => {
-		cleanup();
-		console.log("[notifications] Registered with Notification Center");
-	});
+  registrationNotification.on("show", () => {
+    cleanup();
+    console.log("[notifications] Registered with Notification Center");
+  });
 
-	// Fallback timeout in case macOS doesn't fire events
-	setTimeout(cleanup, 1000);
+  // Fallback timeout in case macOS doesn't fire events
+  setTimeout(cleanup, 1000);
 
-	registrationNotification.show();
+  registrationNotification.show();
 }
 
 // macOS open-url can fire before the window exists (cold-start via protocol link).
@@ -139,226 +139,241 @@ let pendingDeepLinkUrl: string | null = null;
 let appReady = false;
 
 app.on("open-url", async (event, url) => {
-	event.preventDefault();
-	if (appReady) {
-		await processDeepLink(url);
-	} else {
-		pendingDeepLinkUrl = url;
-	}
+  event.preventDefault();
+  if (appReady) {
+    await processDeepLink(url);
+  } else {
+    pendingDeepLinkUrl = url;
+  }
 });
 
 let isQuitting = false;
 let skipConfirmation = false;
 
 function getConfirmOnQuitSetting(): boolean {
-	try {
-		const row = localDb.select().from(settings).get();
-		return row?.confirmOnQuit ?? DEFAULT_CONFIRM_ON_QUIT;
-	} catch {
-		return DEFAULT_CONFIRM_ON_QUIT;
-	}
+  try {
+    const row = localDb.select().from(settings).get();
+    return row?.confirmOnQuit ?? DEFAULT_CONFIRM_ON_QUIT;
+  } catch {
+    return DEFAULT_CONFIRM_ON_QUIT;
+  }
 }
 
 export function setSkipQuitConfirmation(): void {
-	skipConfirmation = true;
+  skipConfirmation = true;
 }
 
 export function quitWithoutConfirmation(): void {
-	skipConfirmation = true;
-	app.exit(0);
+  skipConfirmation = true;
+  app.exit(0);
 }
 
 app.on("before-quit", async (event) => {
-	if (isQuitting) return;
+  if (isQuitting) return;
 
-	const isDev = process.env.NODE_ENV === "development";
-	const shouldConfirm =
-		!skipConfirmation && !isDev && getConfirmOnQuitSetting();
+  const isDev = process.env.NODE_ENV === "development";
+  const shouldConfirm =
+    !skipConfirmation && !isDev && getConfirmOnQuitSetting();
 
-	if (shouldConfirm) {
-		event.preventDefault();
+  if (shouldConfirm) {
+    event.preventDefault();
 
-		try {
-			const { response } = await dialog.showMessageBox({
-				type: "question",
-				buttons: ["Quit", "Cancel"],
-				defaultId: 0,
-				cancelId: 1,
-				title: "Quit Superset",
-				message: "Are you sure you want to quit?",
-			});
+    try {
+      const { response } = await dialog.showMessageBox({
+        type: "question",
+        buttons: ["Quit", "Cancel"],
+        defaultId: 0,
+        cancelId: 1,
+        title: "Quit Superset",
+        message: "Are you sure you want to quit?",
+      });
 
-			if (response === 1) return;
-		} catch (error) {
-			console.error("[main] Quit confirmation dialog failed:", error);
-		}
-	}
+      if (response === 1) return;
+    } catch (error) {
+      console.error("[main] Quit confirmation dialog failed:", error);
+    }
+  }
 
-	// Quit confirmed or no confirmation needed - exit immediately
-	// Let OS clean up child processes, tray, etc.
-	isQuitting = true;
-	getHostServiceManager().stopAll();
-	disposeTray();
-	app.exit(0);
+  // Quit confirmed or no confirmation needed - exit immediately
+  // Let OS clean up child processes, tray, etc.
+  isQuitting = true;
+  getHostServiceManager().stopAll();
+  disposeTray();
+  app.exit(0);
 });
 
 process.on("uncaughtException", (error) => {
-	if (isQuitting) return;
-	console.error("[main] Uncaught exception:", error);
+  if (isQuitting) return;
+  console.error("[main] Uncaught exception:", error);
 });
 
 process.on("unhandledRejection", (reason) => {
-	if (isQuitting) return;
-	console.error("[main] Unhandled rejection:", reason);
+  if (isQuitting) return;
+  console.error("[main] Unhandled rejection:", reason);
 });
 
 // Without these handlers, Electron may not quit when electron-vite sends SIGTERM
 if (process.env.NODE_ENV === "development") {
-	const handleTerminationSignal = (signal: string) => {
-		console.log(`[main] Received ${signal}, quitting...`);
-		app.exit(0);
-	};
+  const handleTerminationSignal = (signal: string) => {
+    console.log(`[main] Received ${signal}, quitting...`);
+    app.exit(0);
+  };
 
-	process.on("SIGTERM", () => handleTerminationSignal("SIGTERM"));
-	process.on("SIGINT", () => handleTerminationSignal("SIGINT"));
+  process.on("SIGTERM", () => handleTerminationSignal("SIGTERM"));
+  process.on("SIGINT", () => handleTerminationSignal("SIGINT"));
 
-	// Fallback: electron-vite may exit without signaling the child Electron process
-	const parentPid = process.ppid;
-	const isParentAlive = (): boolean => {
-		try {
-			process.kill(parentPid, 0);
-			return true;
-		} catch {
-			return false;
-		}
-	};
+  // Fallback: electron-vite may exit without signaling the child Electron process
+  const parentPid = process.ppid;
+  const isParentAlive = (): boolean => {
+    try {
+      process.kill(parentPid, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  };
 
-	const parentCheckInterval = setInterval(() => {
-		if (!isParentAlive()) {
-			console.log("[main] Parent process exited, quitting...");
-			clearInterval(parentCheckInterval);
-			app.exit(0);
-		}
-	}, 1000);
-	parentCheckInterval.unref();
+  const parentCheckInterval = setInterval(() => {
+    if (!isParentAlive()) {
+      console.log("[main] Parent process exited, quitting...");
+      clearInterval(parentCheckInterval);
+      app.exit(0);
+    }
+  }, 1000);
+  parentCheckInterval.unref();
 }
 
 protocol.registerSchemesAsPrivileged([
-	{
-		scheme: "superset-icon",
-		privileges: {
-			standard: true,
-			secure: true,
-			bypassCSP: true,
-			supportFetchAPI: true,
-		},
-	},
-	{
-		scheme: "superset-font",
-		privileges: {
-			standard: true,
-			secure: true,
-			bypassCSP: true,
-			supportFetchAPI: true,
-		},
-	},
+  {
+    scheme: "superset-icon",
+    privileges: {
+      standard: true,
+      secure: true,
+      bypassCSP: true,
+      supportFetchAPI: true,
+    },
+  },
+  {
+    scheme: "superset-font",
+    privileges: {
+      standard: true,
+      secure: true,
+      bypassCSP: true,
+      supportFetchAPI: true,
+    },
+  },
 ]);
 
 const gotTheLock = app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
-	app.exit(0);
+  app.exit(0);
 } else {
-	// Windows/Linux: protocol URL arrives as argv on the second instance
-	app.on("second-instance", async (_event, argv) => {
-		focusMainWindow();
-		const url = findDeepLinkInArgv(argv);
-		if (url) {
-			await processDeepLink(url);
-		}
-	});
+  // Windows/Linux: protocol URL arrives as argv on the second instance
+  app.on("second-instance", async (_event, argv) => {
+    focusMainWindow();
+    const url = findDeepLinkInArgv(argv);
+    if (url) {
+      await processDeepLink(url);
+    }
+  });
 
-	(async () => {
-		await app.whenReady();
-		registerWithMacOSNotificationCenter();
-		requestAppleEventsAccess();
+  (async () => {
+    await app.whenReady();
+    registerWithMacOSNotificationCenter();
+    requestAppleEventsAccess();
 
-		// Must register on both default session and the app's custom partition
-		const iconProtocolHandler = (request: Request) => {
-			const url = new URL(request.url);
-			const projectId = url.pathname.replace(/^\//, "");
-			const iconPath = getProjectIconPath(projectId);
-			if (!iconPath) {
-				return new Response("Not found", { status: 404 });
-			}
-			return net.fetch(pathToFileURL(iconPath).toString());
-		};
-		protocol.handle("superset-icon", iconProtocolHandler);
-		session
-			.fromPartition("persist:superset")
-			.protocol.handle("superset-icon", iconProtocolHandler);
+    // Must register on both default session and the app's custom partition
+    const iconProtocolHandler = (request: Request) => {
+      const url = new URL(request.url);
+      const projectId = url.pathname.replace(/^\//, "");
+      const iconPath = getProjectIconPath(projectId);
+      if (!iconPath) {
+        return new Response("Not found", { status: 404 });
+      }
+      return net.fetch(pathToFileURL(iconPath).toString());
+    };
+    protocol.handle("superset-icon", iconProtocolHandler);
+    session
+      .fromPartition("persist:superset")
+      .protocol.handle("superset-icon", iconProtocolHandler);
 
-		// Serve system fonts (e.g. SF Mono on macOS) via custom protocol
-		// so the renderer can use @font-face with font-src 'self' CSP
-		if (process.platform === "darwin") {
-			const SYSTEM_FONT_DIRS = [
-				"/System/Applications/Utilities/Terminal.app/Contents/Resources/Fonts",
-				"/System/Library/Fonts",
-				"/Library/Fonts",
-			];
-			const fontProtocolHandler = async (request: Request) => {
-				const url = new URL(request.url);
-				const filename = path.basename(url.pathname);
-				if (!/\.(otf|ttf|woff2?)$/i.test(filename)) {
-					return new Response("Not found", { status: 404 });
-				}
-				for (const dir of SYSTEM_FONT_DIRS) {
-					const fontPath = path.join(dir, filename);
-					try {
-						return await net.fetch(pathToFileURL(fontPath).toString());
-					} catch {
-						// Font not in this directory, try next
-					}
-				}
-				return new Response("Not found", { status: 404 });
-			};
-			protocol.handle("superset-font", fontProtocolHandler);
-			session
-				.fromPartition("persist:superset")
-				.protocol.handle("superset-font", fontProtocolHandler);
-		}
+    // Serve system fonts via custom protocol
+    // so the renderer can use @font-face with font-src 'self' CSP
+    {
+      const SYSTEM_FONT_DIRS =
+        process.platform === "darwin"
+          ? [
+              "/System/Applications/Utilities/Terminal.app/Contents/Resources/Fonts",
+              "/System/Library/Fonts",
+              "/Library/Fonts",
+            ]
+          : process.platform === "win32"
+            ? [
+                path.join(
+                  process.env.LOCALAPPDATA || "",
+                  "Microsoft/Windows/Fonts",
+                ),
+                "C:/Windows/Fonts",
+              ]
+            : [
+                "/usr/share/fonts",
+                "/usr/local/share/fonts",
+                path.join(process.env.HOME || "", ".local/share/fonts"),
+              ];
+      const fontProtocolHandler = async (request: Request) => {
+        const url = new URL(request.url);
+        const filename = path.basename(url.pathname);
+        if (!/\.(otf|ttf|woff2?)$/i.test(filename)) {
+          return new Response("Not found", { status: 404 });
+        }
+        for (const dir of SYSTEM_FONT_DIRS) {
+          const fontPath = path.join(dir, filename);
+          try {
+            return await net.fetch(pathToFileURL(fontPath).toString());
+          } catch {
+            // Font not in this directory, try next
+          }
+        }
+        return new Response("Not found", { status: 404 });
+      };
+      protocol.handle("superset-font", fontProtocolHandler);
+      session
+        .fromPartition("persist:superset")
+        .protocol.handle("superset-font", fontProtocolHandler);
+    }
 
-		ensureProjectIconsDir();
-		setWorkspaceDockIcon();
-		initSentry();
-		await initAppState();
+    ensureProjectIconsDir();
+    setWorkspaceDockIcon();
+    initSentry();
+    await initAppState();
 
-		await loadWebviewBrowserExtension();
+    await loadWebviewBrowserExtension();
 
-		// Must happen before renderer restore runs
-		await reconcileDaemonSessions();
-		prewarmTerminalRuntime();
+    // Must happen before renderer restore runs
+    await reconcileDaemonSessions();
+    prewarmTerminalRuntime();
 
-		try {
-			setupAgentHooks();
-		} catch (error) {
-			console.error("[main] Failed to set up agent hooks:", error);
-		}
+    try {
+      setupAgentHooks();
+    } catch (error) {
+      console.error("[main] Failed to set up agent hooks:", error);
+    }
 
-		await makeAppSetup(() => MainWindow());
-		setupAutoUpdater();
-		initTray();
+    await makeAppSetup(() => MainWindow());
+    setupAutoUpdater();
+    initTray();
 
-		// Process any deep links from cold start
-		const coldStartUrl = findDeepLinkInArgv(process.argv);
-		if (coldStartUrl) {
-			await processDeepLink(coldStartUrl);
-		}
-		if (pendingDeepLinkUrl) {
-			await processDeepLink(pendingDeepLinkUrl);
-			pendingDeepLinkUrl = null;
-		}
+    // Process any deep links from cold start
+    const coldStartUrl = findDeepLinkInArgv(process.argv);
+    if (coldStartUrl) {
+      await processDeepLink(coldStartUrl);
+    }
+    if (pendingDeepLinkUrl) {
+      await processDeepLink(pendingDeepLinkUrl);
+      pendingDeepLinkUrl = null;
+    }
 
-		appReady = true;
-	})();
+    appReady = true;
+  })();
 }

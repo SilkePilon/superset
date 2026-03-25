@@ -60,9 +60,34 @@ const DAEMON_VERSION = "1.0.0";
 const SUPERSET_HOME_DIR = join(homedir(), SUPERSET_DIR_NAME);
 
 // Socket and token paths
-const SOCKET_PATH = join(SUPERSET_HOME_DIR, "terminal-host.sock");
+const SOCKET_PATH =
+	process.platform === "win32"
+		? `\\\\.\\pipe\\superset-terminal-host-${SUPERSET_DIR_NAME}`
+		: join(SUPERSET_HOME_DIR, "terminal-host.sock");
 const TOKEN_PATH = join(SUPERSET_HOME_DIR, "terminal-host.token");
 const PID_PATH = join(SUPERSET_HOME_DIR, "terminal-host.pid");
+
+/**
+ * On Windows, named pipes are not visible in the filesystem,
+ * so we always return true and let connect() determine availability.
+ */
+function socketPathExists(): boolean {
+	if (process.platform === "win32") return true;
+	return existsSync(SOCKET_PATH);
+}
+
+/**
+ * Remove the IPC endpoint from the filesystem.
+ * On Windows, named pipes are managed by the OS and don't need manual cleanup.
+ */
+function removeSocketPath(): void {
+	if (process.platform === "win32") return;
+	try {
+		unlinkSync(SOCKET_PATH);
+	} catch {
+		// Ignore
+	}
+}
 
 // =============================================================================
 // Logging
@@ -658,7 +683,7 @@ function handleConnection(socket: Socket) {
  */
 function isSocketLive(): Promise<boolean> {
 	return new Promise((resolve) => {
-		if (!existsSync(SOCKET_PATH)) {
+		if (!socketPathExists()) {
 			resolve(false);
 			return;
 		}
@@ -691,16 +716,18 @@ async function startServer(): Promise<void> {
 		log("info", `Created directory: ${SUPERSET_HOME_DIR}`);
 	}
 
-	// Ensure directory has correct permissions
-	try {
-		chmodSync(SUPERSET_HOME_DIR, 0o700);
-	} catch {
-		// May fail if not owner, that's okay
+	// Ensure directory has correct permissions (not applicable on Windows)
+	if (process.platform !== "win32") {
+		try {
+			chmodSync(SUPERSET_HOME_DIR, 0o700);
+		} catch {
+			// May fail if not owner, that's okay
+		}
 	}
 
 	// Check if socket is live before removing it
 	// This prevents orphaning a running daemon
-	if (existsSync(SOCKET_PATH)) {
+	if (socketPathExists()) {
 		const isLive = await isSocketLive();
 		if (isLive) {
 			log("error", "Another daemon is already running and responsive");
@@ -708,12 +735,8 @@ async function startServer(): Promise<void> {
 		}
 
 		// Socket exists but not responsive - safe to remove
-		try {
-			unlinkSync(SOCKET_PATH);
-			log("info", "Removed stale socket file");
-		} catch (error) {
-			throw new Error(`Failed to remove stale socket: ${error}`);
-		}
+		removeSocketPath();
+		log("info", "Removed stale socket");
 	}
 
 	// Clean up stale PID file if socket was removed
@@ -764,10 +787,12 @@ async function startServer(): Promise<void> {
 
 		newServer.listen(SOCKET_PATH, () => {
 			// Set socket permissions (readable/writable by owner only)
-			try {
-				chmodSync(SOCKET_PATH, 0o600);
-			} catch {
-				// May fail on some systems, that's okay - directory permissions protect us
+			if (process.platform !== "win32") {
+				try {
+					chmodSync(SOCKET_PATH, 0o600);
+				} catch {
+					// May fail on some systems, that's okay - directory permissions protect us
+				}
 			}
 
 			// Write PID file
@@ -799,7 +824,7 @@ async function stopServer(): Promise<void> {
 	});
 
 	try {
-		if (existsSync(SOCKET_PATH)) unlinkSync(SOCKET_PATH);
+		removeSocketPath();
 		if (existsSync(PID_PATH)) unlinkSync(PID_PATH);
 	} catch {
 		// Best effort cleanup
