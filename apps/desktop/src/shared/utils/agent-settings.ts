@@ -279,7 +279,11 @@ function buildHeredoc(
 	delimiter: string,
 	command: string,
 	suffix?: string,
+	platform?: NodeJS.Platform,
 ): string {
+	if ((platform ?? process.platform) === "win32") {
+		return buildWindowsHeredoc(prompt, command, suffix);
+	}
 	const closing = suffix ? `)" ${suffix}` : ')"';
 	return [
 		`${command} "$(cat <<'${delimiter}'`,
@@ -289,13 +293,40 @@ function buildHeredoc(
 	].join("\n");
 }
 
+function buildWindowsHeredoc(
+	prompt: string,
+	command: string,
+	suffix?: string,
+): string {
+	const suffixStr = suffix ? ` ${suffix}` : "";
+	const psScript = `$p = @'\n${prompt}\n'@\n${command} $p${suffixStr}`;
+	const encoded = Buffer.from(psScript, "utf16le").toString("base64");
+	return `powershell -NoProfile -EncodedCommand ${encoded}`;
+}
+
 function buildFileCommand(
 	filePath: string,
 	command: string,
 	suffix?: string,
+	platform?: NodeJS.Platform,
 ): string {
+	if ((platform ?? process.platform) === "win32") {
+		return buildWindowsFileCommand(filePath, command, suffix);
+	}
 	const escapedPath = filePath.replaceAll("'", "'\\''");
 	return `${command} "$(cat '${escapedPath}')"${suffix ? ` ${suffix}` : ""}`;
+}
+
+function buildWindowsFileCommand(
+	filePath: string,
+	command: string,
+	suffix?: string,
+): string {
+	const suffixStr = suffix ? ` ${suffix}` : "";
+	const normalizedPath = filePath.replaceAll("/", "\\");
+	const psScript = `${command} (Get-Content -Raw '${normalizedPath}')${suffixStr}`;
+	const encoded = Buffer.from(psScript, "utf16le").toString("base64");
+	return `powershell -NoProfile -EncodedCommand ${encoded}`;
 }
 
 export function getCommandFromAgentConfig(
@@ -309,10 +340,12 @@ export function buildPromptCommandFromAgentConfig({
 	prompt,
 	randomId,
 	config,
+	platform,
 }: {
 	prompt: string;
 	randomId: string;
 	config: TerminalResolvedAgentConfig;
+	platform?: NodeJS.Platform;
 }): string | null {
 	const promptCommand = config.promptCommand.trim() || config.command.trim();
 	if (!promptCommand) return null;
@@ -323,21 +356,23 @@ export function buildPromptCommandFromAgentConfig({
 	}
 
 	const suffix = config.promptCommandSuffix?.trim() || undefined;
-	return buildHeredoc(prompt, delimiter, promptCommand, suffix);
+	return buildHeredoc(prompt, delimiter, promptCommand, suffix, platform);
 }
 
 export function buildFileCommandFromAgentConfig({
 	filePath,
 	config,
+	platform,
 }: {
 	filePath: string;
 	config: TerminalResolvedAgentConfig;
+	platform?: NodeJS.Platform;
 }): string | null {
 	const promptCommand = config.promptCommand.trim() || config.command.trim();
 	if (!promptCommand) return null;
 
 	const suffix = config.promptCommandSuffix?.trim() || undefined;
-	return buildFileCommand(filePath, promptCommand, suffix);
+	return buildFileCommand(filePath, promptCommand, suffix, platform);
 }
 
 export function buildDefaultTerminalTaskPrompt(task: TaskInput): string {

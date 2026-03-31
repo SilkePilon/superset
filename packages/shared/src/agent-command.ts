@@ -114,7 +114,11 @@ function buildHeredoc(
 	delimiter: string,
 	command: string,
 	suffix?: string,
+	platform?: NodeJS.Platform,
 ): string {
+	if ((platform ?? process.platform) === "win32") {
+		return buildWindowsHeredoc(prompt, command, suffix);
+	}
 	const closing = suffix ? `)" ${suffix}` : ')"';
 	return [
 		`${command} "$(cat <<'${delimiter}'`,
@@ -124,27 +128,59 @@ function buildHeredoc(
 	].join("\n");
 }
 
+function buildWindowsHeredoc(
+	prompt: string,
+	command: string,
+	suffix?: string,
+): string {
+	const suffixStr = suffix ? ` ${suffix}` : "";
+	// Build a PowerShell script using a here-string to safely pass multiline prompts.
+	// Use -EncodedCommand to avoid all quoting/escaping issues between cmd.exe and PowerShell.
+	const psScript = `$p = @'\n${prompt}\n'@\n${command} $p${suffixStr}`;
+	const encoded = Buffer.from(psScript, "utf16le").toString("base64");
+	return `powershell -NoProfile -EncodedCommand ${encoded}`;
+}
+
 function buildFileCommand(
 	filePath: string,
 	command: string,
 	suffix?: string,
+	platform?: NodeJS.Platform,
 ): string {
+	if ((platform ?? process.platform) === "win32") {
+		return buildWindowsFileCommand(filePath, command, suffix);
+	}
 	const escapedPath = filePath.replaceAll("'", "'\\''");
 	return `${command} "$(cat '${escapedPath}')"${suffix ? ` ${suffix}` : ""}`;
+}
+
+function buildWindowsFileCommand(
+	filePath: string,
+	command: string,
+	suffix?: string,
+): string {
+	const suffixStr = suffix ? ` ${suffix}` : "";
+	const normalizedPath = filePath.replaceAll("/", "\\");
+	const psScript = `${command} (Get-Content -Raw '${normalizedPath}')${suffixStr}`;
+	const encoded = Buffer.from(psScript, "utf16le").toString("base64");
+	return `powershell -NoProfile -EncodedCommand ${encoded}`;
 }
 
 export function buildAgentFileCommand({
 	filePath,
 	agent = "claude",
+	platform,
 }: {
 	filePath: string;
 	agent?: AgentType;
+	platform?: NodeJS.Platform;
 }): string {
 	const promptCommand = AGENT_PROMPT_COMMANDS[agent];
 	return buildFileCommand(
 		filePath,
 		promptCommand.command,
 		promptCommand.suffix,
+		platform,
 	);
 }
 
@@ -152,10 +188,12 @@ export function buildAgentPromptCommand({
 	prompt,
 	randomId,
 	agent = "claude",
+	platform,
 }: {
 	prompt: string;
 	randomId: string;
 	agent?: AgentType;
+	platform?: NodeJS.Platform;
 }): string {
 	let delimiter = `SUPERSET_PROMPT_${randomId.replaceAll("-", "")}`;
 	while (prompt.includes(delimiter)) {
@@ -167,6 +205,7 @@ export function buildAgentPromptCommand({
 		delimiter,
 		promptCommand.command,
 		promptCommand.suffix,
+		platform,
 	);
 }
 
@@ -174,13 +213,15 @@ export function buildAgentCommand({
 	task,
 	randomId,
 	agent = "claude",
+	platform,
 }: {
 	task: TaskInput;
 	randomId: string;
 	agent?: AgentType;
+	platform?: NodeJS.Platform;
 }): string {
 	const prompt = buildAgentTaskPrompt(task);
-	return buildAgentPromptCommand({ prompt, randomId, agent });
+	return buildAgentPromptCommand({ prompt, randomId, agent, platform });
 }
 
 /** @deprecated Use `buildAgentCommand` instead */
