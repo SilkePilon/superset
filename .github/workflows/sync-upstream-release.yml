@@ -1,0 +1,112 @@
+name: Sync Upstream Release
+
+on:
+    schedule:
+        # Run daily at 08:00 UTC
+        - cron: "0 8 * * *"
+    workflow_dispatch: # Allow manual trigger
+
+jobs:
+    sync-upstream-release:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Check for new upstream release and create PR
+              uses: actions/github-script@v7
+              with:
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
+                  script: |
+                      const upstream = { owner: "superset-sh", repo: "superset" };
+                      const fork = { owner: "SilkePilon", repo: "superset" };
+
+                      // Get the latest release from upstream
+                      let latestRelease;
+                      try {
+                        const { data } = await github.rest.repos.getLatestRelease(upstream);
+                        latestRelease = data;
+                      } catch (err) {
+                        console.log("No releases found on upstream repo.");
+                        return;
+                      }
+
+                      const tag = latestRelease.tag_name;
+                      console.log(`Latest upstream release: ${tag}`);
+
+                      // Check if we already created a PR for this release
+                      const { data: existingPRs } = await github.rest.pulls.list({
+                        ...fork,
+                        state: "all",
+                        head: `superset-sh:${latestRelease.target_commitish || "main"}`,
+                      });
+
+                      const alreadySynced = existingPRs.some(
+                        (pr) => pr.title === `chore: sync upstream release ${tag}`
+                      );
+
+                      if (alreadySynced) {
+                        console.log(`PR for release ${tag} already exists. Skipping.`);
+                        return;
+                      }
+
+                      // Also check by searching for the tag in PR titles to be safe
+                      const { data: searchPRs } = await github.rest.pulls.list({
+                        ...fork,
+                        state: "all",
+                        per_page: 30,
+                      });
+
+                      const tagAlreadySynced = searchPRs.some(
+                        (pr) => pr.title === `chore: sync upstream release ${tag}`
+                      );
+
+                      if (tagAlreadySynced) {
+                        console.log(`PR for release ${tag} already exists (found via search). Skipping.`);
+                        return;
+                      }
+
+                      // Ensure the fork has the upstream remote configured and fetch
+                      // We create a PR from upstream's default branch to fork's default branch
+                      const { data: upstreamRepo } = await github.rest.repos.get(upstream);
+                      const { data: forkRepo } = await github.rest.repos.get(fork);
+                      const upstreamDefaultBranch = upstreamRepo.default_branch;
+                      const forkDefaultBranch = forkRepo.default_branch;
+
+                      const releaseUrl = latestRelease.html_url;
+                      const releaseNotes = latestRelease.body || "_No release notes provided._";
+                      const releaseName = latestRelease.name || tag;
+                      const publishedAt = latestRelease.published_at;
+
+                      const prBody = [
+                        `## Upstream Release: [${releaseName}](${releaseUrl})`,
+                        "",
+                        `**Tag:** \`${tag}\``,
+                        `**Published:** ${publishedAt}`,
+                        "",
+                        "---",
+                        "",
+                        "### Release Notes",
+                        "",
+                        releaseNotes,
+                        "",
+                        "---",
+                        "",
+                        `_This PR was automatically created to sync upstream release [\`${tag}\`](${releaseUrl})._`,
+                      ].join("\n");
+
+                      // Create the PR from upstream default branch to fork default branch
+                      try {
+                        const { data: pr } = await github.rest.pulls.create({
+                          ...fork,
+                          title: `chore: sync upstream release ${tag}`,
+                          body: prBody,
+                          head: `superset-sh:${upstreamDefaultBranch}`,
+                          base: forkDefaultBranch,
+                        });
+
+                        console.log(`Created PR #${pr.number}: ${pr.html_url}`);
+                      } catch (err) {
+                        if (err.status === 422) {
+                          console.log("No new commits to sync or PR already exists.");
+                        } else {
+                          throw err;
+                        }
+                      }
