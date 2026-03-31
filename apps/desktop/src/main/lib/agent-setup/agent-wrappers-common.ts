@@ -1,91 +1,84 @@
 import fs from "node:fs";
 import path from "node:path";
+import { SUPERSET_MANAGED_BINARIES } from "./desktop-agent-capabilities";
 import { BIN_DIR } from "./paths";
 
 export const WRAPPER_MARKER = "# Superset agent-wrapper v1";
-export const SUPERSET_MANAGED_BINARIES = [
-  "claude",
-  "codex",
-  "droid",
-  "opencode",
-  "gemini",
-  "copilot",
-  "mastracode",
-] as const;
+export { SUPERSET_MANAGED_BINARIES };
 
 const SUPERSET_MANAGED_HOOK_PATH_PATTERN = /\/\.superset(?:-[^/'"\s\\]+)?\//;
 
 export function writeFileIfChanged(
-  filePath: string,
-  content: string,
-  mode: number,
+	filePath: string,
+	content: string,
+	mode: number,
 ): boolean {
-  const existing = fs.existsSync(filePath)
-    ? fs.readFileSync(filePath, "utf-8")
-    : null;
-  if (existing === content) {
-    try {
-      fs.chmodSync(filePath, mode);
-    } catch {
-      // Best effort.
-    }
-    return false;
-  }
+	const existing = fs.existsSync(filePath)
+		? fs.readFileSync(filePath, "utf-8")
+		: null;
+	if (existing === content) {
+		try {
+			fs.chmodSync(filePath, mode);
+		} catch {
+			// Best effort.
+		}
+		return false;
+	}
 
-  fs.writeFileSync(filePath, content, { mode });
-  return true;
+	fs.writeFileSync(filePath, content, { mode });
+	return true;
 }
 
 export function isSupersetManagedHookCommand(
-  command: string | undefined,
-  scriptName: string,
+	command: string | undefined,
+	scriptName: string,
 ): boolean {
-  if (!command) return false;
-  const normalized = command.replaceAll("\\", "/");
-  if (!normalized.includes(`/hooks/${scriptName}`)) return false;
-  return SUPERSET_MANAGED_HOOK_PATH_PATTERN.test(normalized);
+	if (!command) return false;
+	const normalized = command.replaceAll("\\", "/");
+	if (!normalized.includes(`/hooks/${scriptName}`)) return false;
+	return SUPERSET_MANAGED_HOOK_PATH_PATTERN.test(normalized);
 }
 
 interface ReconcileManagedEntriesOptions<T> {
-  current: T[] | undefined;
-  desired: T[];
-  isManaged: (entry: T) => boolean;
-  isEquivalent: (entry: T, desiredEntry: T) => boolean;
+	current: T[] | undefined;
+	desired: T[];
+	isManaged: (entry: T) => boolean;
+	isEquivalent: (entry: T, desiredEntry: T) => boolean;
 }
 
 interface ReconcileManagedEntriesResult<T> {
-  entries: T[];
-  replacedManagedEntries: T[];
+	entries: T[];
+	replacedManagedEntries: T[];
 }
 
 export function reconcileManagedEntries<T>({
-  current,
-  desired,
-  isManaged,
-  isEquivalent,
+	current,
+	desired,
+	isManaged,
+	isEquivalent,
 }: ReconcileManagedEntriesOptions<T>): ReconcileManagedEntriesResult<T> {
-  const existing = Array.isArray(current) ? current : [];
-  const entries: T[] = [];
-  const replacedManagedEntries: T[] = [];
+	const existing = Array.isArray(current) ? current : [];
+	const entries: T[] = [];
+	const replacedManagedEntries: T[] = [];
 
-  for (const entry of existing) {
-    if (!isManaged(entry)) {
-      entries.push(entry);
-      continue;
-    }
+	for (const entry of existing) {
+		if (!isManaged(entry)) {
+			entries.push(entry);
+			continue;
+		}
 
-    if (!desired.some((desiredEntry) => isEquivalent(entry, desiredEntry))) {
-      replacedManagedEntries.push(entry);
-    }
-  }
+		if (!desired.some((desiredEntry) => isEquivalent(entry, desiredEntry))) {
+			replacedManagedEntries.push(entry);
+		}
+	}
 
-  entries.push(...desired);
+	entries.push(...desired);
 
-  return { entries, replacedManagedEntries };
+	return { entries, replacedManagedEntries };
 }
 
 function buildRealBinaryResolver(): string {
-  return `find_real_binary() {
+	return `find_real_binary() {
   local name="$1"
   local IFS=:
   for dir in $PATH; do
@@ -105,18 +98,18 @@ function buildRealBinaryResolver(): string {
 }
 
 function getMissingBinaryMessage(name: string): string {
-  return `Superset: ${name} not found in PATH. Install it and ensure it is on PATH, then retry.`;
+	return `Superset: ${name} not found in PATH. Install it and ensure it is on PATH, then retry.`;
 }
 
 export function getWrapperPath(binaryName: string): string {
-  return path.join(BIN_DIR, binaryName);
+	return path.join(BIN_DIR, binaryName);
 }
 
 export function buildWrapperScript(
-  binaryName: string,
-  execLine: string,
+	binaryName: string,
+	execLine: string,
 ): string {
-  return `#!/bin/bash
+	return `#!/bin/bash
 ${WRAPPER_MARKER}
 # Superset wrapper for ${binaryName}
 
@@ -132,8 +125,8 @@ ${execLine}
 }
 
 export function createWrapper(binaryName: string, script: string): void {
-  const changed = writeFileIfChanged(getWrapperPath(binaryName), script, 0o755);
-  console.log(
-    `[agent-setup] ${changed ? "Updated" : "Verified"} ${binaryName} wrapper`,
-  );
+	const changed = writeFileIfChanged(getWrapperPath(binaryName), script, 0o755);
+	console.log(
+		`[agent-setup] ${changed ? "Updated" : "Verified"} ${binaryName} wrapper`,
+	);
 }

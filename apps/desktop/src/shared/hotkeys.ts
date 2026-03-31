@@ -459,6 +459,16 @@ export const HOTKEYS = {
 		label: "Next Workspace",
 		category: "Workspace",
 	}),
+	CLOSE_WORKSPACE: defineHotkey({
+		keys: "meta+shift+backspace",
+		label: "Close Workspace",
+		category: "Workspace",
+		description: "Close or delete the current workspace",
+		defaults: {
+			win32: "ctrl+shift+backspace",
+			linux: "ctrl+shift+backspace",
+		},
+	}),
 
 	// Layout
 	TOGGLE_SIDEBAR: defineHotkey({
@@ -777,13 +787,6 @@ export const HOTKEYS = {
 		label: "Quick Open File",
 		category: "Navigation",
 		description: "Search and open files in the current workspace",
-	}),
-	KEYWORD_SEARCH: defineHotkey({
-		keys: "meta+shift+f",
-		label: "Keyword Search",
-		category: "Navigation",
-		description:
-			"Search for keyword matches across files in the current workspace",
 	}),
 
 	// Chat

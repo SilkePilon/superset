@@ -1,236 +1,137 @@
 import {
-  DEFAULT_TERMINAL_TASK_PROMPT_TEMPLATE,
-  renderTaskPromptTemplate,
+	buildPromptCommandString,
+	buildPromptFileCommandString,
+	type PromptTransport,
+} from "./agent-prompt-launch";
+import {
+	DEFAULT_TERMINAL_TASK_PROMPT_TEMPLATE,
+	renderTaskPromptTemplate,
 } from "./agent-prompt-template";
+import {
+	BUILTIN_TERMINAL_AGENT_COMMANDS,
+	BUILTIN_TERMINAL_AGENT_DESCRIPTIONS,
+	BUILTIN_TERMINAL_AGENT_LABELS,
+	BUILTIN_TERMINAL_AGENT_PROMPT_COMMANDS,
+	BUILTIN_TERMINAL_AGENT_TYPES,
+	type BuiltinTerminalAgentType,
+} from "./builtin-terminal-agents";
 
-export const AGENT_TYPES = [
-  "claude",
-  "codex",
-  "gemini",
-  "mastracode",
-  "opencode",
-  "pi",
-  "copilot",
-  "cursor-agent",
-] as const;
+export {
+	BUILTIN_TERMINAL_AGENTS,
+	DEFAULT_TERMINAL_PRESET_AGENT_TYPES,
+} from "./builtin-terminal-agents";
 
-export type AgentType = (typeof AGENT_TYPES)[number];
+export const AGENT_TYPES = BUILTIN_TERMINAL_AGENT_TYPES;
 
-export const AGENT_LABELS: Record<AgentType, string> = {
-  claude: "Claude",
-  codex: "Codex",
-  gemini: "Gemini",
-  mastracode: "Mastracode",
-  opencode: "OpenCode",
-  pi: "Pi",
-  copilot: "Copilot",
-  "cursor-agent": "Cursor Agent",
-};
+export type AgentType = BuiltinTerminalAgentType;
 
-export const AGENT_PRESET_COMMANDS: Record<AgentType, string[]> = {
-  claude: ["claude --dangerously-skip-permissions"],
-  codex: [
-    'codex -c model_reasoning_effort="high" --dangerously-bypass-approvals-and-sandbox -c model_reasoning_summary="detailed" -c model_supports_reasoning_summaries=true',
-  ],
-  gemini: ["gemini --yolo"],
-  mastracode: ["mastracode"],
-  opencode: ["opencode"],
-  pi: ["pi"],
-  copilot: ["copilot --allow-all"],
-  "cursor-agent": ["cursor-agent"],
-};
+export const AGENT_LABELS: Record<AgentType, string> =
+	BUILTIN_TERMINAL_AGENT_LABELS;
 
-export const AGENT_PRESET_DESCRIPTIONS: Record<AgentType, string> = {
-  claude:
-    "Anthropic's coding agent for reading code, editing files, and running terminal workflows.",
-  codex:
-    "OpenAI's coding agent for reading, modifying, and running code across tasks.",
-  gemini:
-    "Google's open-source terminal agent for coding, problem-solving, and task work.",
-  mastracode:
-    "Mastra's coding agent for building, debugging, and shipping code from the terminal.",
-  opencode: "Open-source coding agent for the terminal, IDE, and desktop.",
-  pi: "Minimal terminal coding harness for flexible coding workflows.",
-  copilot:
-    "GitHub's coding agent for planning, editing, and building in your repo.",
-  "cursor-agent":
-    "Cursor's coding agent for editing, running, and debugging code in parallel.",
-};
+export const AGENT_PRESET_COMMANDS: Record<AgentType, string[]> =
+	BUILTIN_TERMINAL_AGENT_COMMANDS;
+
+export const AGENT_PRESET_DESCRIPTIONS: Record<AgentType, string> =
+	BUILTIN_TERMINAL_AGENT_DESCRIPTIONS;
 
 export interface AgentPromptCommandDefaults {
-  command: string;
-  suffix?: string;
+	command: string;
+	suffix?: string;
+	transport: PromptTransport;
 }
 
 export const AGENT_PROMPT_COMMANDS: Record<
-  AgentType,
-  AgentPromptCommandDefaults
-> = {
-  claude: {
-    command: AGENT_PRESET_COMMANDS.claude[0] ?? "claude",
-  },
-  codex: {
-    command: `${AGENT_PRESET_COMMANDS.codex[0] ?? "codex"} --`,
-  },
-  gemini: {
-    command: "gemini",
-    suffix: "--yolo",
-  },
-  mastracode: {
-    command: AGENT_PRESET_COMMANDS.mastracode[0] ?? "mastracode",
-  },
-  opencode: {
-    command: "opencode --prompt",
-  },
-  pi: {
-    command: AGENT_PRESET_COMMANDS.pi[0] ?? "pi",
-  },
-  copilot: {
-    command: "copilot -i --allow-all",
-    suffix: "--yolo",
-  },
-  "cursor-agent": {
-    command: AGENT_PRESET_COMMANDS["cursor-agent"][0] ?? "cursor-agent",
-    suffix: "--yolo",
-  },
-};
+	AgentType,
+	AgentPromptCommandDefaults
+> = BUILTIN_TERMINAL_AGENT_PROMPT_COMMANDS;
 
 export interface TaskInput {
-  id: string;
-  slug: string;
-  title: string;
-  description: string | null;
-  priority: string;
-  statusName: string | null;
-  labels: string[] | null;
+	id: string;
+	slug: string;
+	title: string;
+	description: string | null;
+	priority: string;
+	statusName: string | null;
+	labels: string[] | null;
 }
 
 export function buildAgentTaskPrompt(task: TaskInput): string {
-  return renderTaskPromptTemplate(DEFAULT_TERMINAL_TASK_PROMPT_TEMPLATE, task);
+	return renderTaskPromptTemplate(DEFAULT_TERMINAL_TASK_PROMPT_TEMPLATE, task);
 }
 
-function buildHeredoc(
-  prompt: string,
-  delimiter: string,
-  command: string,
-  suffix?: string,
-  platform?: NodeJS.Platform,
-): string {
-  if ((platform ?? process.platform) === "win32") {
-    return buildWindowsHeredoc(prompt, command, suffix);
-  }
-  const closing = suffix ? `)" ${suffix}` : ')"';
-  return [
-    `${command} "$(cat <<'${delimiter}'`,
-    prompt,
-    delimiter,
-    closing,
-  ].join("\n");
-}
-
-function buildWindowsHeredoc(
-  prompt: string,
-  command: string,
-  suffix?: string,
-): string {
-  const suffixStr = suffix ? ` ${suffix}` : "";
-  // Build a PowerShell script using a here-string to safely pass multiline prompts.
-  // Use -EncodedCommand to avoid all quoting/escaping issues between cmd.exe and PowerShell.
-  const psScript = `$p = @'\n${prompt}\n'@\n${command} $p${suffixStr}`;
-  const encoded = Buffer.from(psScript, "utf16le").toString("base64");
-  return `powershell -NoProfile -EncodedCommand ${encoded}`;
-}
-
-function buildFileCommand(
-  filePath: string,
-  command: string,
-  suffix?: string,
-  platform?: NodeJS.Platform,
-): string {
-  if ((platform ?? process.platform) === "win32") {
-    return buildWindowsFileCommand(filePath, command, suffix);
-  }
-  const escapedPath = filePath.replaceAll("'", "'\\''");
-  return `${command} "$(cat '${escapedPath}')"${suffix ? ` ${suffix}` : ""}`;
-}
-
-function buildWindowsFileCommand(
-  filePath: string,
-  command: string,
-  suffix?: string,
-): string {
-  const suffixStr = suffix ? ` ${suffix}` : "";
-  const normalizedPath = filePath.replaceAll("/", "\\");
-  const psScript = `${command} (Get-Content -Raw '${normalizedPath}')${suffixStr}`;
-  const encoded = Buffer.from(psScript, "utf16le").toString("base64");
-  return `powershell -NoProfile -EncodedCommand ${encoded}`;
+function getAgentPromptCommandDefaults(
+	agent: AgentType,
+): AgentPromptCommandDefaults {
+	const promptCommand = AGENT_PROMPT_COMMANDS[agent];
+	if (!promptCommand) {
+		throw new Error(`Unknown agent prompt command defaults: ${agent}`);
+	}
+	return promptCommand;
 }
 
 export function buildAgentFileCommand({
-  filePath,
-  agent = "claude",
-  platform,
+	filePath,
+	agent = "claude",
+	platform,
 }: {
-  filePath: string;
-  agent?: AgentType;
-  platform?: NodeJS.Platform;
+	filePath: string;
+	agent?: AgentType;
+	platform?: NodeJS.Platform;
 }): string {
-  const promptCommand = AGENT_PROMPT_COMMANDS[agent];
-  return buildFileCommand(
-    filePath,
-    promptCommand.command,
-    promptCommand.suffix,
-    platform,
-  );
+	const promptCommand = getAgentPromptCommandDefaults(agent);
+	return buildPromptFileCommandString({
+		filePath,
+		command: promptCommand.command,
+		suffix: promptCommand.suffix,
+		transport: promptCommand.transport,
+		platform,
+	});
 }
 
 export function buildAgentPromptCommand({
-  prompt,
-  randomId,
-  agent = "claude",
-  platform,
+	prompt,
+	randomId,
+	agent = "claude",
+	platform,
 }: {
-  prompt: string;
-  randomId: string;
-  agent?: AgentType;
-  platform?: NodeJS.Platform;
+	prompt: string;
+	randomId: string;
+	agent?: AgentType;
+	platform?: NodeJS.Platform;
 }): string {
-  let delimiter = `SUPERSET_PROMPT_${randomId.replaceAll("-", "")}`;
-  while (prompt.includes(delimiter)) {
-    delimiter = `${delimiter}_X`;
-  }
-  const promptCommand = AGENT_PROMPT_COMMANDS[agent];
-  return buildHeredoc(
-    prompt,
-    delimiter,
-    promptCommand.command,
-    promptCommand.suffix,
-    platform,
-  );
+	const promptCommand = getAgentPromptCommandDefaults(agent);
+	return buildPromptCommandString({
+		prompt,
+		randomId,
+		command: promptCommand.command,
+		suffix: promptCommand.suffix,
+		transport: promptCommand.transport,
+		platform,
+	});
 }
 
 export function buildAgentCommand({
-  task,
-  randomId,
-  agent = "claude",
-  platform,
+	task,
+	randomId,
+	agent = "claude",
+	platform,
 }: {
-  task: TaskInput;
-  randomId: string;
-  agent?: AgentType;
-  platform?: NodeJS.Platform;
+	task: TaskInput;
+	randomId: string;
+	agent?: AgentType;
+	platform?: NodeJS.Platform;
 }): string {
-  const prompt = buildAgentTaskPrompt(task);
-  return buildAgentPromptCommand({ prompt, randomId, agent, platform });
+	const prompt = buildAgentTaskPrompt(task);
+	return buildAgentPromptCommand({ prompt, randomId, agent, platform });
 }
 
 /** @deprecated Use `buildAgentCommand` instead */
 export function buildClaudeCommand({
-  task,
-  randomId,
+	task,
+	randomId,
 }: {
-  task: TaskInput;
-  randomId: string;
+	task: TaskInput;
+	randomId: string;
 }): string {
-  return buildAgentCommand({ task, randomId, agent: "claude" });
+	return buildAgentCommand({ task, randomId, agent: "claude" });
 }
